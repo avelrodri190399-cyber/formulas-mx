@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <clipPath id="roundedClip">
+      <rect x="0" y="0" width="512" height="512" rx="115"/>
+    </clipPath>
+  </defs>
+  <rect x="0" y="0" width="512" height="512" rx="115" fill="#ff6b35"/>
+  <rect x="0" y="0" width="512" height="260" rx="115" fill="#ff8c42" opacity="0.35" clip-path="url(#roundedClip)"/>
+  <rect x="196" y="68" width="120" height="32" rx="10" fill="white" opacity="0.95"/>
+  <rect x="210" y="96" width="92" height="24" rx="8" fill="white" opacity="0.9"/>
+  <ellipse cx="256" cy="108" rx="32" ry="20" fill="white" opacity="0.85"/>
+  <ellipse cx="256" cy="102" rx="18" ry="13" fill="white" opacity="0.7"/>
+  <rect x="178" y="118" width="156" height="240" rx="34" fill="white" opacity="0.95"/>
+  <rect x="178" y="316" width="156" height="58" rx="34" fill="white" opacity="0.95"/>
+  <rect x="190" y="270" width="132" height="120" rx="24" fill="#fff5e6" opacity="0.95"/>
+  <ellipse cx="256" cy="270" rx="66" ry="14" fill="#ffe4b5" opacity="0.8"/>
+  <line x1="192" y1="220" x2="216" y2="220" stroke="#ff8c42" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
+  <line x1="192" y1="245" x2="208" y2="245" stroke="#ff8c42" stroke-width="3" stroke-linecap="round" opacity="0.5"/>
+  <line x1="192" y1="270" x2="216" y2="270" stroke="#ff8c42" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
+  <rect x="190" y="128" width="32" height="90" rx="16" fill="white" opacity="0.25"/>
+  <circle cx="420" cy="90" r="8" fill="white" opacity="0.3"/>
+  <circle cx="90" cy="110" r="6" fill="white" opacity="0.25"/>
+  <text x="256" y="432" text-anchor="middle" font-family="Arial, sans-serif" font-size="38" font-weight="700" fill="white">INVENTARIO</text>
+  <text x="256" y="476" text-anchor="middle" font-family="Arial, sans-serif" font-size="28" font-weight="600" fill="white" opacity="0.85">FORMULAS</text>
+</svg>
