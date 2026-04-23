@@ -355,7 +355,7 @@ function setError(){
 }
 
 // ── FORMATEAR MONEDA MXN ──────────────────────────────────
-function mxn(n){ return 'MX$'+Number(n||0).toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function mxn(n){ return 'MX$'+Number(n||0).toLocaleString('es-MX',{minimumFractionDigits:0,maximumFractionDigits:0}); }
 
 // ── FIREBASE LISTENERS ───────────────────────────────────
 onSnapshot(query(collection(db,'productos'),orderBy('nombre')), snap=>{
