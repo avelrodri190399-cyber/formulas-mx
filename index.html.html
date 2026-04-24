@@ -379,6 +379,49 @@ body{font-family:var(--font);background:var(--bg);color:var(--white);min-height:
 </div>
 </div>
 
+<!-- ══ MODAL: EDITAR CLIENTE ══ -->
+<div class="overlay" id="modal-cliente">
+<div class="modal">
+  <div class="modal-hdr">
+    <h2>✏️ Editar Cliente</h2>
+    <button class="modal-close" onclick="cerrarModal('modal-cliente')">✕</button>
+  </div>
+  <input type="hidden" id="c-id"/>
+  <div class="fg"><label>Nombre del Cliente <span class="req">*</span></label>
+    <input type="text" id="c-nombre" placeholder="Ej: María García"/></div>
+  <div class="frow">
+    <div class="fg"><label>Teléfono</label>
+      <input type="tel" id="c-telefono" placeholder="Ej: 5512345678"/></div>
+    <div class="fg"><label>Total Compras</label>
+      <input type="number" id="c-totalcompras" placeholder="0" min="0"/></div>
+  </div>
+  <div class="frow">
+    <div class="fg"><label>Total Gastado MX$</label>
+      <input type="number" id="c-totalgastado" placeholder="0.00" step="0.01" min="0"/></div>
+    <div class="fg"><label>Frecuencia (días)</label>
+      <input type="number" id="c-frecuencia" placeholder="Ej: 30" min="1"/>
+      <div class="hint">Cada cuántos días compra</div></div>
+  </div>
+  <div class="fg"><label>📅 Última Compra</label>
+    <button type="button" class="cal-btn" id="cal-btn-cultima" onclick="toggleCal('cultima')">
+      <span id="cal-lbl-cultima" class="placeholder">Seleccionar fecha</span><span>📅</span>
+    </button>
+    <input type="hidden" id="c-ultimacompra"/>
+    <div class="cal-wrap" id="cal-cultima"></div>
+  </div>
+  <div class="fg"><label>📅 Próxima Compra Probable</label>
+    <button type="button" class="cal-btn" id="cal-btn-cproxima" onclick="toggleCal('cproxima')">
+      <span id="cal-lbl-cproxima" class="placeholder">Seleccionar fecha</span><span>📅</span>
+    </button>
+    <input type="hidden" id="c-proximacompra"/>
+    <div class="cal-wrap" id="cal-cproxima"></div>
+  </div>
+  <div class="fg"><label>Notas</label>
+    <input type="text" id="c-notas" placeholder="Ej: Prefiere fórmula sin lactosa"/></div>
+  <button class="btn-primary" onclick="guardarCliente()">💾 Guardar Cliente</button>
+</div>
+</div>
+
 <!-- FIREBASE -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -667,9 +710,79 @@ function renderClientes(){
         <div><div class="cf2-label">Frecuencia</div><div class="cf2-value">${c.frecuenciaDias?c.frecuenciaDias+' días':'—'}</div></div>
         <div><div class="cf2-label">Días desde compra</div><div class="cf2-value">${diasDesde(c.ultimaCompra)??'—'} días</div></div>
       </div>
+      <div class="card-actions" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <button class="btn-lime" onclick="abrirEditarCliente('${id}')">✏️ Editar Cliente</button>
+        <button class="btn-red" onclick="eliminarCliente('${id}')">🗑 Eliminar</button>
+      </div>
     </div>`;
   }).join('');
 }
+
+
+// ══ EDITAR / ELIMINAR CLIENTES ════════════════════════
+function limpiarFormCliente(){
+  ['c-nombre','c-telefono','c-totalcompras','c-totalgastado','c-frecuencia','c-ultimacompra','c-proximacompra','c-notas'].forEach(i=>{const el=document.getElementById(i);if(el)el.value='';});
+  document.getElementById('c-id').value='';
+  ['cultima','cproxima'].forEach(k=>{
+    const lbl=document.getElementById('cal-lbl-'+k);
+    if(lbl){lbl.textContent='Seleccionar fecha';lbl.className='placeholder';}
+    closeCal(k);
+  });
+}
+
+window.abrirEditarCliente=id=>{
+  const c=clientes[id]; if(!c) return;
+  limpiarFormCliente();
+  document.getElementById('c-id').value=id;
+  document.getElementById('c-nombre').value=c.nombre||'';
+  document.getElementById('c-telefono').value=c.telefono||'';
+  document.getElementById('c-totalcompras').value=c.totalCompras||0;
+  document.getElementById('c-totalgastado').value=c.totalGastado||0;
+  document.getElementById('c-frecuencia').value=c.frecuenciaDias||'';
+  document.getElementById('c-notas').value=c.notas||'';
+  if(c.ultimaCompra){document.getElementById('c-ultimacompra').value=c.ultimaCompra;document.getElementById('cal-lbl-cultima').textContent=fmtDate(c.ultimaCompra);document.getElementById('cal-lbl-cultima').className='';}
+  if(c.proximaCompra){document.getElementById('c-proximacompra').value=c.proximaCompra;document.getElementById('cal-lbl-cproxima').textContent=fmtDate(c.proximaCompra);document.getElementById('cal-lbl-cproxima').className='';}
+  abrirModal('modal-cliente');
+};
+
+window.guardarCliente=async()=>{
+  const nombre=document.getElementById('c-nombre').value.trim();
+  if(!nombre){alert('El nombre del cliente es obligatorio');return;}
+  const id=document.getElementById('c-id').value; if(!id) return;
+  setSyncing(true);
+  const frecuencia=+document.getElementById('c-frecuencia').value||null;
+  const ultimaCompra=document.getElementById('c-ultimacompra').value||null;
+  let proximaCompra=document.getElementById('c-proximacompra').value||null;
+  if(frecuencia&&ultimaCompra&&!proximaCompra){
+    const p=new Date(ultimaCompra); p.setDate(p.getDate()+frecuencia);
+    proximaCompra=p.toISOString().split('T')[0];
+    document.getElementById('c-proximacompra').value=proximaCompra;
+    document.getElementById('cal-lbl-cproxima').textContent=fmtDate(proximaCompra);
+  }
+  const data={
+    nombre,
+    telefono:document.getElementById('c-telefono').value.trim(),
+    totalCompras:+document.getElementById('c-totalcompras').value||0,
+    totalGastado:+document.getElementById('c-totalgastado').value||0,
+    frecuenciaDias:frecuencia,
+    ultimaCompra,
+    proximaCompra,
+    notas:document.getElementById('c-notas').value.trim(),
+  };
+  try{
+    await update(ref(db,'clientes/'+id),data);
+    cerrarModal('modal-cliente');
+    limpiarFormCliente();
+  }catch(e){alert('Error: '+e.message);}
+  setSyncing(false);
+};
+
+window.eliminarCliente=async id=>{
+  if(!confirm('¿Eliminar este cliente? No se borrarán sus ventas.')) return;
+  setSyncing(true);
+  try{await remove(ref(db,'clientes/'+id));}catch(e){alert('Error: '+e.message);}
+  setSyncing(false);
+};
 
 // ══ HELPERS ═══════════════════════════════════════════
 function descargarCSV(rows,nombre){
@@ -683,7 +796,7 @@ window.cerrarModal=id=>{ document.getElementById(id).classList.remove('show'); d
 document.querySelectorAll('.overlay').forEach(el=>el.addEventListener('click',e=>{ if(e.target===el) window.cerrarModal(el.id); }));
 
 // ══ CALENDARIO ════════════════════════════════════════
-const calState={pvenc:{y:new Date().getFullYear(),m:new Date().getMonth()},vventa:{y:new Date().getFullYear(),m:new Date().getMonth()}};
+const calState={pvenc:{y:new Date().getFullYear(),m:new Date().getMonth()},vventa:{y:new Date().getFullYear(),m:new Date().getMonth()},cultima:{y:new Date().getFullYear(),m:new Date().getMonth()},cproxima:{y:new Date().getFullYear(),m:new Date().getMonth()}};
 const meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const dias=['Do','Lu','Ma','Mi','Ju','Vi','Sá'];
 
@@ -694,7 +807,7 @@ window.closeCal=closeCal;
 function renderCal(key){
   const s=calState[key]; const now=new Date();
   const fd=new Date(s.y,s.m,1).getDay(); const dim=new Date(s.y,s.m+1,0).getDate(); const pd=new Date(s.y,s.m,0).getDate();
-  const hiddenId=key==='pvenc'?'p-vencimiento':'v-fecha';
+  const hiddenId=key==='pvenc'?'p-vencimiento':key==='vventa'?'v-fecha':key==='cultima'?'c-ultimacompra':'c-proximacompra';
   const selVal=document.getElementById(hiddenId).value;
   let h=`<div class="cal-head"><button class="cal-nav" onclick="calNav('${key}',-1)">‹</button><span>${meses[s.m]} ${s.y}</span><button class="cal-nav" onclick="calNav('${key}',1)">›</button></div><div class="cal-dow">${dias.map(d=>`<span>${d}</span>`).join('')}</div><div class="cal-grid">`;
   for(let i=fd-1;i>=0;i--) h+=`<button class="cal-day other" disabled>${pd-i}</button>`;
@@ -704,7 +817,14 @@ function renderCal(key){
 }
 
 window.calNav=(key,dir)=>{ calState[key].m+=dir; if(calState[key].m>11){calState[key].m=0;calState[key].y++;} if(calState[key].m<0){calState[key].m=11;calState[key].y--;} renderCal(key); };
-window.selectDay=(key,iso)=>{ const lbl=key==='pvenc'?'cal-lbl-pvenc':'cal-lbl-vventa'; const hid=key==='pvenc'?'p-vencimiento':'v-fecha'; document.getElementById(hid).value=iso; document.getElementById(lbl).textContent=fmtDate(iso); document.getElementById(lbl).className=''; closeCal(key); };
+window.selectDay=(key,iso)=>{
+  const lblMap={pvenc:'cal-lbl-pvenc',vventa:'cal-lbl-vventa',cultima:'cal-lbl-cultima',cproxima:'cal-lbl-cproxima'};
+  const hidMap={pvenc:'p-vencimiento',vventa:'v-fecha',cultima:'c-ultimacompra',cproxima:'c-proximacompra'};
+  document.getElementById(hidMap[key]).value=iso;
+  document.getElementById(lblMap[key]).textContent=fmtDate(iso);
+  document.getElementById(lblMap[key]).className='';
+  closeCal(key);
+};
 
 // Fecha inicial del header
 document.querySelector('.header-brand span').textContent=new Date().toLocaleDateString('es-MX',{weekday:'long',day:'numeric',month:'long'}).toUpperCase();
