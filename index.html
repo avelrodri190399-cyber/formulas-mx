@@ -96,4 +96,219 @@
         </div>
     </div>
 
-    <div id="modal-venta" class="fixed inset-0 bg-black/80 hidden z-50
+    <div id="modal-venta" class="fixed inset-0 bg-black/80 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 w-full max-w-md rounded-2xl p-6 space-y-4 border border-slate-700">
+            <h3 class="text-xl font-bold text-blue-400">Registrar Nueva Venta</h3>
+            <select id="v-producto" class="w-full text-slate-400">
+                </select>
+            <div class="grid grid-cols-2 gap-4">
+                <input type="number" id="v-cantidad" placeholder="Cantidad a vender">
+                <input type="text" id="v-cliente" placeholder="Nombre Cliente">
+            </div>
+            <div class="flex gap-2">
+                <button onclick="toggleModal('modal-venta')" class="flex-1 bg-slate-800 py-3 rounded-xl font-bold">Cancelar</button>
+                <button onclick="guardarVenta()" class="flex-1 bg-blue-500 text-white font-bold py-3 rounded-xl">Vender y Descontar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-cliente" class="fixed inset-0 bg-black/80 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 w-full max-w-md rounded-2xl p-6 space-y-4 border border-slate-700">
+            <h3 class="text-xl font-bold text-purple-400">Registrar Cliente</h3>
+            <input type="text" id="c-nombre" placeholder="Nombre del Cliente" class="w-full">
+            <input type="text" id="c-telefono" placeholder="Teléfono / Contacto" class="w-full">
+            <div class="flex gap-2 mt-4">
+                <button onclick="toggleModal('modal-cliente')" class="flex-1 bg-slate-800 py-3 rounded-xl font-bold">Cancelar</button>
+                <button onclick="guardarCliente()" class="flex-1 bg-purple-500 text-white font-bold py-3 rounded-xl">Guardar Cliente</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, set, push, onValue, update } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        // *** IMPORTANTE: PEGA AQUÍ TUS CREDENCIALES DE FIREBASE ***
+        const firebaseConfig = {
+            apiKey: "TU_API_KEY",
+            authDomain: "TU_PROYECTO.firebaseapp.com",
+            databaseURL: "https://TU_PROYECTO.firebaseio.com",
+            projectId: "TU_PROYECTO",
+            storageBucket: "TU_PROYECTO.appspot.com",
+            messagingSenderId: "ID",
+            appId: "APP_ID"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // Variables Globales para cálculos
+        let inventarioGlobal = {};
+
+        // Cambiar pestañas
+        window.switchTab = (tab) => {
+            document.querySelectorAll('main section').forEach(s => s.classList.add('hidden'));
+            document.getElementById(`tab-${tab}`).classList.remove('hidden');
+            
+            document.querySelectorAll('nav button').forEach(b => b.classList.remove('tab-active', 'text-lime-400', 'text-blue-400', 'text-purple-400'));
+            
+            let colorClase = tab === 'almacen' ? 'text-lime-400' : tab === 'ventas' ? 'text-blue-400' : 'text-purple-400';
+            document.getElementById(`btn-${tab}`).classList.add('tab-active', colorClase);
+        };
+
+        window.toggleModal = (id) => {
+            document.getElementById(id).classList.toggle('hidden');
+        };
+
+        // 1. GUARDAR PRODUCTO
+        window.guardarProducto = () => {
+            const producto = {
+                nombre: document.getElementById('p-nombre').value,
+                costo: parseFloat(document.getElementById('p-costo').value || 0),
+                precio: parseFloat(document.getElementById('p-precio').value || 0),
+                stock: parseInt(document.getElementById('p-stock').value || 0),
+                minimo: parseInt(document.getElementById('p-minimo').value || 0),
+                vencimiento: document.getElementById('p-vencimiento').value || 'Sin fecha'
+            };
+            if(!producto.nombre) return alert("Ponle nombre al producto");
+            
+            push(ref(db, 'almacen'), producto);
+            toggleModal('modal-producto');
+            alert("✅ Producto guardado en SyM Group");
+        };
+
+        // 2. ABRIR MODAL VENTA (Carga los productos)
+        window.abrirModalVenta = () => {
+            const select = document.getElementById('v-producto');
+            select.innerHTML = '<option value="">Selecciona un producto...</option>';
+            for(let id in inventarioGlobal) {
+                if(inventarioGlobal[id].stock > 0) {
+                    select.innerHTML += `<option value="${id}">${inventarioGlobal[id].nombre} (Disp: ${inventarioGlobal[id].stock})</option>`;
+                }
+            }
+            toggleModal('modal-venta');
+        };
+
+        // 3. GUARDAR VENTA Y DESCONTAR STOCK
+        window.guardarVenta = () => {
+            const prodId = document.getElementById('v-producto').value;
+            const cantidad = parseInt(document.getElementById('v-cantidad').value);
+            const cliente = document.getElementById('v-cliente').value || "Público General";
+            
+            if(!prodId || !cantidad) return alert("Faltan datos de la venta");
+            
+            const producto = inventarioGlobal[prodId];
+            if(cantidad > producto.stock) return alert("No tienes suficiente stock para vender esa cantidad");
+
+            // Crear el registro de venta
+            const venta = {
+                productoId: prodId,
+                nombre_producto: producto.nombre,
+                cantidad: cantidad,
+                cliente: cliente,
+                precio_total: producto.precio * cantidad,
+                ganancia_neta: (producto.precio - producto.costo) * cantidad,
+                fecha: new Date().toLocaleDateString()
+            };
+
+            // Restar del inventario
+            const nuevoStock = producto.stock - cantidad;
+
+            // Enviar a Firebase ambas cosas
+            push(ref(db, 'ventas'), venta);
+            update(ref(db, 'almacen/' + prodId), { stock: nuevoStock });
+
+            toggleModal('modal-venta');
+            alert("💸 Venta registrada y stock actualizado");
+        };
+
+        // 4. GUARDAR CLIENTE
+        window.guardarCliente = () => {
+            const cliente = {
+                nombre: document.getElementById('c-nombre').value,
+                telefono: document.getElementById('c-telefono').value,
+                fecha_registro: new Date().toLocaleDateString()
+            };
+            if(!cliente.nombre) return alert("Falta el nombre");
+            
+            push(ref(db, 'clientes'), cliente);
+            toggleModal('modal-cliente');
+            alert("👥 Cliente registrado");
+        };
+
+        // ================= LECTURA EN TIEMPO REAL =================
+
+        // Cargar Inventario
+        onValue(ref(db, 'almacen'), (snapshot) => {
+            inventarioGlobal = snapshot.val() || {};
+            const container = document.getElementById('lista-productos');
+            container.innerHTML = "";
+            
+            for(let id in inventarioGlobal) {
+                const p = inventarioGlobal[id];
+                const bajoStock = p.stock <= p.minimo;
+                container.innerHTML += `
+                    <div class="bg-slate-800 p-4 rounded-xl border ${bajoStock ? 'border-red-500' : 'border-slate-700'}">
+                        <div class="flex justify-between items-center">
+                            <h4 class="font-bold text-lime-400">${p.nombre}</h4>
+                            <span class="bg-slate-900 px-2 py-1 rounded text-xs">Vence: ${p.vencimiento}</span>
+                        </div>
+                        <div class="grid grid-cols-2 mt-2 text-sm">
+                            <p>Stock: <span class="${bajoStock ? 'text-red-500 font-bold' : 'text-white'}">${p.stock}</span></p>
+                            <p class="text-right text-slate-300">Precio: MX$${p.precio}</p>
+                        </div>
+                    </div>
+                `;
+            }
+        });
+
+        // Cargar Ventas (Y sumar el total del día)
+        onValue(ref(db, 'ventas'), (snapshot) => {
+            const data = snapshot.val() || {};
+            const container = document.getElementById('lista-ventas');
+            container.innerHTML = "";
+            let ventasDeHoy = 0;
+            const hoy = new Date().toLocaleDateString();
+
+            const ventasArr = Object.values(data).reverse(); // Para ver las más nuevas arriba
+            
+            ventasArr.forEach(v => {
+                if(v.fecha === hoy) ventasDeHoy += v.precio_total;
+
+                container.innerHTML += `
+                    <div class="bg-slate-800 p-4 rounded-xl border border-slate-700">
+                        <p class="text-xs text-slate-400">${v.fecha} - ${v.cliente}</p>
+                        <h4 class="font-bold text-blue-400">${v.cantidad}x ${v.nombre_producto}</h4>
+                        <div class="flex justify-between mt-1 text-sm">
+                            <p>Total: <span class="text-white font-bold">MX$${v.precio_total}</span></p>
+                            <p class="text-green-400">Ganancia: MX$${v.ganancia_neta}</p>
+                        </div>
+                    </div>
+                `;
+            });
+            document.getElementById('total-ventas').innerText = "MX$" + ventasDeHoy;
+        });
+
+        // Cargar Clientes
+        onValue(ref(db, 'clientes'), (snapshot) => {
+            const data = snapshot.val() || {};
+            const container = document.getElementById('lista-clientes');
+            container.innerHTML = "";
+            
+            for(let id in data) {
+                const c = data[id];
+                container.innerHTML += `
+                    <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center">
+                        <div>
+                            <h4 class="font-bold text-purple-400">${c.nombre}</h4>
+                            <p class="text-xs text-slate-400">Tel: ${c.telefono}</p>
+                        </div>
+                        <span class="text-xs bg-slate-900 px-2 py-1 rounded">Desde: ${c.fecha_registro}</span>
+                    </div>
+                `;
+            }
+        });
+
+    </script>
+</body>
+</html>
