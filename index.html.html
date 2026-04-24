@@ -601,6 +601,8 @@ window.abrirNuevaVenta=()=>{ renderSelectProducto(); document.getElementById('v-
 
 window.abrirVentaConProducto=id=>{ abrirNuevaVenta(); setTimeout(()=>{ document.getElementById('v-producto').value=id; const p=productos[id]; if(p) document.getElementById('v-precio').value=p.precio; calcularVenta(); },100); };
 
+window.abrirVentaConClienteNombre=nombre=>{ abrirNuevaVenta(); setTimeout(()=>{ document.getElementById('v-cliente').value=nombre; },100); cambiarTab('ventas'); };
+
 window.guardarVenta=async()=>{
   const prodId=document.getElementById('v-producto').value;
   const cant=+document.getElementById('v-cantidad').value;
@@ -620,20 +622,65 @@ window.guardarVenta=async()=>{
     await push(ref(db,'ventas'),{productoId:prodId,productoNombre:prod.nombre,cantidad:cant,precioUnit:precio,inversion,total,ganancia,cliente:clienteNombre||'Sin nombre',notas:document.getElementById('v-notas').value.trim(),fecha:new Date().toISOString()});
     // 2. Descontar stock
     await update(ref(db,'productos/'+prodId),{stock:prod.stock-cant});
-    // 3. Actualizar cliente
+    // 3. Actualizar cliente — un solo registro por cliente con historial de compras
     if(clienteNombre){
-      const clienteKey=clienteNombre.toLowerCase().replace(/\s+/g,'_');
-      const clienteExistente=Object.values(clientes).find(c=>c.nombre.toLowerCase()===clienteNombre.toLowerCase());
-      if(clienteExistente){
-        const cid=Object.keys(clientes).find(k=>clientes[k].nombre.toLowerCase()===clienteNombre.toLowerCase());
-        const diasEntreCom=diasDesde(clienteExistente.ultimaCompra)||0;
-        const historial=clienteExistente.historialDias||[];
-        historial.push(diasEntreCom);
-        const frecuencia=Math.round(historial.reduce((a,b)=>a+b,0)/historial.length);
-        const proxima=new Date(); proxima.setDate(proxima.getDate()+frecuencia);
-        await update(ref(db,'clientes/'+cid),{ultimaCompra:fechaVenta,totalCompras:(clienteExistente.totalCompras||0)+1,totalGastado:(clienteExistente.totalGastado||0)+total,historialDias:historial,frecuenciaDias:frecuencia,proximaCompra:proxima.toISOString().split('T')[0]});
+      // Buscar si ya existe el cliente (case-insensitive)
+      const cid = Object.keys(clientes).find(k=>clientes[k].nombre.toLowerCase()===clienteNombre.toLowerCase());
+      if(cid){
+        // ── Cliente existente: acumular historial ──
+        const c = clientes[cid];
+        const diasEntreCom = diasDesde(c.ultimaCompra) || 0;
+        const historialDias = c.historialDias || [];
+        const historialCompras = c.historialCompras || [];
+        // Agregar dias entre compras para calcular frecuencia
+        if(diasEntreCom > 0) historialDias.push(diasEntreCom);
+        // Agregar esta compra al historial detallado
+        historialCompras.push({
+          fecha: fechaVenta,
+          producto: prod.nombre,
+          cantidad: cant,
+          total,
+          ganancia
+        });
+        // Calcular frecuencia promedio
+        const frecuencia = historialDias.length > 0
+          ? Math.round(historialDias.reduce((a,b)=>a+b,0)/historialDias.length)
+          : null;
+        // Calcular próxima compra
+        let proximaCompra = null;
+        if(frecuencia){
+          const p = new Date(fechaVenta); p.setDate(p.getDate()+frecuencia);
+          proximaCompra = p.toISOString().split('T')[0];
+        }
+        await update(ref(db,'clientes/'+cid),{
+          ultimaCompra: fechaVenta,
+          totalCompras: (c.totalCompras||0)+1,
+          totalGastado: (c.totalGastado||0)+total,
+          historialDias,
+          historialCompras,
+          frecuenciaDias: frecuencia,
+          proximaCompra
+        });
       } else {
-        await push(ref(db,'clientes'),{nombre:clienteNombre,ultimaCompra:fechaVenta,totalCompras:1,totalGastado:total,historialDias:[],frecuenciaDias:null,proximaCompra:null});
+        // ── Cliente nuevo ──
+        await push(ref(db,'clientes'),{
+          nombre: clienteNombre,
+          telefono: '',
+          notas: '',
+          ultimaCompra: fechaVenta,
+          totalCompras: 1,
+          totalGastado: total,
+          historialDias: [],
+          historialCompras: [{
+            fecha: fechaVenta,
+            producto: prod.nombre,
+            cantidad: cant,
+            total,
+            ganancia
+          }],
+          frecuenciaDias: null,
+          proximaCompra: null
+        });
       }
     }
     cerrarModal('modal-venta');
@@ -697,6 +744,26 @@ function renderClientes(){
     else if(diaProx<0) proximaBadge='<span class="badge badge-red">🚨 Debería comprar</span>';
     else if(diaProx<=7) proximaBadge=`<span class="badge badge-yellow">⏰ En ${diaProx}d</span>`;
     else proximaBadge=`<span class="badge badge-lime">En ${diaProx} días</span>`;
+    // Historial de compras
+    const historial = c.historialCompras || [];
+    const historialHTML = historial.length > 0
+      ? `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+          <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">📋 Historial de Compras</div>
+          ${historial.slice().reverse().slice(0,5).map(h=>`
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px">
+              <div>
+                <div style="font-weight:600;color:var(--white)">${h.producto||'—'} ×${h.cantidad}</div>
+                <div style="color:var(--muted);margin-top:1px">${fmtDate(h.fecha)}</div>
+              </div>
+              <div style="text-align:right">
+                <div style="font-weight:700;font-family:var(--mono);color:var(--lime)">${mxn(h.total)}</div>
+                <div style="color:var(--muted);font-size:11px">gan. ${mxn(h.ganancia)}</div>
+              </div>
+            </div>`).join('')}
+          ${historial.length > 5 ? `<div style="font-size:11px;color:var(--muted);text-align:center;padding-top:6px">+ ${historial.length-5} compras anteriores</div>` : ''}
+        </div>`
+      : '';
+
     return `<div class="cliente-card">
       <div class="cliente-header">
         <div class="cliente-name">👤 ${c.nombre}</div>
@@ -710,9 +777,11 @@ function renderClientes(){
         <div><div class="cf2-label">Frecuencia</div><div class="cf2-value">${c.frecuenciaDias?c.frecuenciaDias+' días':'—'}</div></div>
         <div><div class="cf2-label">Días desde compra</div><div class="cf2-value">${diasDesde(c.ultimaCompra)??'—'} días</div></div>
       </div>
+      ${historialHTML}
       <div class="card-actions" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
-        <button class="btn-lime" onclick="abrirEditarCliente('${id}')">✏️ Editar Cliente</button>
-        <button class="btn-red" onclick="eliminarCliente('${id}')">🗑 Eliminar</button>
+        <button class="btn-lime" onclick="abrirEditarCliente('${id}')">✏️ Editar</button>
+        <button class="btn-ghost" onclick="abrirVentaConClienteNombre('${c.nombre}')">💰 Vender</button>
+        <button class="btn-red" onclick="eliminarCliente('${id}')">🗑</button>
       </div>
     </div>`;
   }).join('');
