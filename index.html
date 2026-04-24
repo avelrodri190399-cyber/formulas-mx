@@ -289,24 +289,71 @@
             document.getElementById('total-ventas').innerText = "MX$" + ventasDeHoy;
         });
 
-        // Cargar Clientes
+     // Cargar Clientes con Predicción de Compra
         onValue(ref(db, 'clientes'), (snapshot) => {
-            const data = snapshot.val() || {};
+            const clientesData = snapshot.val() || {};
             const container = document.getElementById('lista-clientes');
             container.innerHTML = "";
             
-            for(let id in data) {
-                const c = data[id];
-                container.innerHTML += `
-                    <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 flex justify-between items-center">
-                        <div>
-                            <h4 class="font-bold text-purple-400">${c.nombre}</h4>
-                            <p class="text-xs text-slate-400">Tel: ${c.telefono}</p>
+            // También necesitamos las ventas para calcular las fechas
+            onValue(ref(db, 'ventas'), (vSnap) => {
+                const ventasData = vSnap.val() || {};
+                const ventasArr = Object.values(ventasData);
+
+                for(let id in clientesData) {
+                    const c = clientesData[id];
+                    
+                    // Filtrar ventas de este cliente específico y ordenarlas por fecha
+                    const comprasCliente = ventasArr
+                        .filter(v => v.cliente === c.nombre)
+                        .map(v => new Date(v.fecha))
+                        .sort((a, b) => a - b);
+
+                    let htmlInfo = `<p class="text-xs text-slate-500 mt-2">Sin historial suficiente para predecir</p>`;
+
+                    if (comprasCliente.length >= 2) {
+                        const reciente = comprasCliente[comprasCliente.length - 1];
+                        const ultima = comprasCliente[comprasCliente.length - 2];
+                        
+                        // Calcular diferencia de días entre las dos últimas compras
+                        const diffTime = Math.abs(reciente - ultima);
+                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                        
+                        // Calcular fecha probable (Reciente + promedio de días)
+                        const fechaProbable = new Date(reciente);
+                        fechaProbable.setDate(reciente.getDate() + diffDays);
+
+                        htmlInfo = `
+                            <div class="grid grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-700/50 text-[10px] uppercase tracking-wider">
+                                <div>
+                                    <p class="text-slate-500">Última Compra</p>
+                                    <p class="text-slate-300 font-semibold">${ultima.toLocaleDateString()}</p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-slate-500">Compra Reciente</p>
+                                    <p class="text-blue-400 font-semibold">${reciente.toLocaleDateString()}</p>
+                                </div>
+                                <div class="col-span-2 mt-2 bg-lime-500/10 p-2 rounded-lg border border-lime-500/20 text-center">
+                                    <p class="text-lime-500 font-bold text-xs">Probable Próxima Compra: ${fechaProbable.toLocaleDateString()}</p>
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    container.innerHTML += `
+                        <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg mb-3">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <h4 class="font-bold text-purple-400 text-lg">${c.nombre}</h4>
+                                    <p class="text-xs text-slate-400">📞 ${c.telefono || 'Sin teléfono'}</p>
+                                </div>
+                                <span class="text-[10px] bg-slate-900 px-2 py-1 rounded-full text-slate-500">Miembro desde: ${c.fecha_registro}</span>
+                            </div>
+                            ${htmlInfo}
                         </div>
-                        <span class="text-xs bg-slate-900 px-2 py-1 rounded">Desde: ${c.fecha_registro}</span>
-                    </div>
-                `;
-            }
+                    `;
+                }
+            });
         });
 
     </script>
