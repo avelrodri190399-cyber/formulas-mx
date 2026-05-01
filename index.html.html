@@ -209,13 +209,22 @@ body{font-family:var(--font);background:var(--bg);color:var(--white);min-height:
       <span id="sync-text">Conectando...</span>
     </div>
   </div>
+  <!-- Selector de fecha del dashboard -->
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:6px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:6px 12px;flex:1;min-width:0">
+      <span style="font-size:14px">📅</span>
+      <input type="date" id="dash-fecha" style="background:none;border:none;color:var(--white);font-family:var(--font);font-size:13px;font-weight:600;outline:none;width:100%;cursor:pointer" onchange="updateDashboard()"/>
+    </div>
+    <button onclick="setDashFechaHoy()" style="background:var(--lime);color:#000;border:none;border-radius:10px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:var(--font)">Hoy</button>
+    <button onclick="setDashFechaAyer()" style="background:var(--bg3);color:var(--white);border:1px solid var(--border);border-radius:10px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:var(--font)">Ayer</button>
+  </div>
   <div class="dashboard">
     <div class="dash-card" style="border-top:3px solid var(--lime)">
-      <div class="dl">Ventas Hoy</div>
+      <div class="dl" id="dash-label-ventas">Ventas Hoy</div>
       <div class="dv c-lime" id="dash-ventas">0</div>
     </div>
     <div class="dash-card" style="border-top:3px solid var(--ml)">
-      <div class="dl">Meli Hoy</div>
+      <div class="dl" id="dash-label-ml">Meli Hoy</div>
       <div class="dv c-ml" id="dash-ml">0</div>
     </div>
     <div class="dash-card" style="border-top:3px solid var(--red)">
@@ -414,21 +423,42 @@ function setSyncing(v){ document.getElementById('sync-dot').className='sync-dot'
 function setError(){ document.getElementById('sync-dot').className='sync-dot error'; document.getElementById('sync-text').textContent='Sin conexión ⚠'; }
 
 // ── LISTENERS ──────────────────────────────────────
-onValue(ref(db,'productos'), snap=>{ productos=snap.val()||{}; renderAlmacen(); updateDashboard(); document.getElementById('loader').classList.add('hide'); setSyncing(false); }, ()=>setError());
+onValue(ref(db,'productos'), snap=>{ productos=snap.val()||{}; renderAlmacen(); const df=document.getElementById('dash-fecha'); if(!df.value) df.value=today(); updateDashboard(); document.getElementById('loader').classList.add('hide'); setSyncing(false); }, ()=>setError());
 onValue(ref(db,'ventas'),    snap=>{ ventas=snap.val()||{};    renderVentas();   updateDashboard(); }, ()=>setError());
 onValue(ref(db,'clientes'),  snap=>{ clientes=snap.val()||{};  renderClientes(); }, ()=>setError());
 onValue(ref(db,'ventasML'),  snap=>{ ventasML=snap.val()||{};  renderML();       updateDashboard(); }, ()=>setError());
 
 // ── DASHBOARD ──────────────────────────────────────
 function updateDashboard(){
-  const t=today();
-  const vHoy=Object.values(ventas).filter(v=>(v.fecha||'').startsWith(t)).length;
-  const mHoy=Object.values(ventasML).filter(v=>(v.fecha||'').startsWith(t)).length;
-  const bajo=Object.values(productos).filter(p=>(+p.stock)<=(+p.stockMin||0)).length;
-  document.getElementById('dash-ventas').textContent=vHoy;
-  document.getElementById('dash-ml').textContent=mHoy;
-  document.getElementById('dash-bajo').textContent=bajo;
+  // Get selected date or default to today
+  const fechaEl = document.getElementById('dash-fecha');
+  if(!fechaEl.value) fechaEl.value = today();
+  const t = fechaEl.value;
+  const isHoy = t === today();
+
+  const vFecha = Object.values(ventas).filter(v=>(v.fechaStr||v.fecha||'').startsWith(t)).length;
+  const mFecha = Object.values(ventasML).filter(v=>(v.fechaStr||v.fecha||'').startsWith(t)).length;
+  const bajo   = Object.values(productos).filter(p=>(+p.stock)<=(+p.stockMin||0)).length;
+
+  document.getElementById('dash-ventas').textContent = vFecha;
+  document.getElementById('dash-ml').textContent     = mFecha;
+  document.getElementById('dash-bajo').textContent   = bajo;
+
+  // Update labels
+  const label = isHoy ? 'Hoy' : fmtDate(t);
+  document.getElementById('dash-label-ventas').textContent = `Ventas ${label}`;
+  document.getElementById('dash-label-ml').textContent     = `Meli ${label}`;
 }
+
+window.setDashFechaHoy = () => {
+  document.getElementById('dash-fecha').value = today();
+  updateDashboard();
+};
+window.setDashFechaAyer = () => {
+  const ayer = new Date(); ayer.setDate(ayer.getDate()-1);
+  document.getElementById('dash-fecha').value = ayer.toISOString().split('T')[0];
+  updateDashboard();
+};
 
 // ── NAVEGACIÓN ─────────────────────────────────────
 window.cambiarTab=t=>{
