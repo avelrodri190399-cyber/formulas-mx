@@ -219,18 +219,28 @@ body{font-family:var(--font);background:var(--bg);color:var(--white);min-height:
     <button onclick="setDashFechaAyer()" style="background:var(--bg3);color:var(--white);border:1px solid var(--border);border-radius:10px;padding:7px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:var(--font)">Ayer</button>
   </div>
   <div class="dashboard">
-    <div class="dash-card" style="border-top:3px solid var(--lime)">
+    <div class="dash-card" style="border-top:3px solid var(--lime);cursor:pointer" onclick="toggleDetalle('ventas')">
       <div class="dl" id="dash-label-ventas">Ventas Hoy</div>
       <div class="dv c-lime" id="dash-ventas">0</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;font-weight:600">Ver detalle ↓</div>
     </div>
-    <div class="dash-card" style="border-top:3px solid var(--ml)">
+    <div class="dash-card" style="border-top:3px solid var(--ml);cursor:pointer" onclick="toggleDetalle('ml')">
       <div class="dl" id="dash-label-ml">Meli Hoy</div>
       <div class="dv c-ml" id="dash-ml">0</div>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;font-weight:600">Ver detalle ↓</div>
     </div>
     <div class="dash-card" style="border-top:3px solid var(--red)">
       <div class="dl">Stock Bajo</div>
       <div class="dv c-red" id="dash-bajo">0</div>
     </div>
+  </div>
+  <!-- Panel de detalle por fecha -->
+  <div id="dash-detalle" style="display:none;margin-top:10px;background:var(--bg3);border-radius:12px;border:1px solid var(--border);overflow:hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border)">
+      <span id="detalle-titulo" style="font-size:13px;font-weight:700;color:var(--white)">Detalle</span>
+      <button onclick="cerrarDetalle()" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer">✕</button>
+    </div>
+    <div id="detalle-lista" style="max-height:220px;overflow-y:auto;padding:8px 0"></div>
   </div>
 </div>
 
@@ -434,6 +444,7 @@ function updateDashboard(){
   const fechaEl = document.getElementById('dash-fecha');
   if(!fechaEl.value) fechaEl.value = today();
   const t = fechaEl.value;
+  if(detalleActivo) renderDetalle(detalleActivo);
   const isHoy = t === today();
 
   const vFecha = Object.values(ventas).filter(v=>(v.fechaStr||v.fecha||'').startsWith(t)).length;
@@ -459,6 +470,61 @@ window.setDashFechaAyer = () => {
   document.getElementById('dash-fecha').value = ayer.toISOString().split('T')[0];
   updateDashboard();
 };
+
+let detalleActivo = null;
+window.toggleDetalle = tipo => {
+  const panel = document.getElementById('dash-detalle');
+  if(detalleActivo === tipo && panel.style.display !== 'none'){
+    cerrarDetalle(); return;
+  }
+  detalleActivo = tipo;
+  panel.style.display = 'block';
+  renderDetalle(tipo);
+};
+window.cerrarDetalle = () => {
+  document.getElementById('dash-detalle').style.display = 'none';
+  detalleActivo = null;
+};
+
+function renderDetalle(tipo){
+  const fechaEl = document.getElementById('dash-fecha');
+  const t = fechaEl.value || today();
+  const label = t === today() ? 'Hoy' : fmtDate(t);
+
+  if(tipo === 'ventas'){
+    document.getElementById('detalle-titulo').textContent = `💰 Ventas · ${label}`;
+    const arr = Object.values(ventas).filter(v=>(v.fechaStr||v.fecha||'').startsWith(t));
+    const el  = document.getElementById('detalle-lista');
+    if(!arr.length){
+      el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Sin ventas en esta fecha</div>';
+      return;
+    }
+    el.innerHTML = arr.map(v=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 14px;border-bottom:1px solid var(--border)">
+        <div>
+          <div style="font-size:13px;font-weight:700">${v.productoNombre||'—'} ×${v.cantidad}</div>
+          <div style="font-size:11px;color:var(--muted)">${v.cliente||'Sin nombre'}${v.notas?' · '+v.notas:''}</div>
+        </div>
+        <span style="font-size:11px;color:var(--lime);font-weight:700;font-family:var(--mono)">${fmtDate(v.fechaStr)}</span>
+      </div>`).join('');
+  } else {
+    document.getElementById('detalle-titulo').textContent = `🛍️ Meli · ${label}`;
+    const arr = Object.values(ventasML).filter(v=>(v.fechaStr||v.fecha||'').startsWith(t));
+    const el  = document.getElementById('detalle-lista');
+    if(!arr.length){
+      el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Sin ventas de ML en esta fecha</div>';
+      return;
+    }
+    el.innerHTML = arr.map(v=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 14px;border-bottom:1px solid var(--border)">
+        <div>
+          <div style="font-size:13px;font-weight:700">${v.productoNombre||'—'} ×${v.cantidad}</div>
+          <div style="font-size:11px;color:var(--muted)">${v.comprador||'Sin comprador'}${v.orden?' · #'+v.orden:''}</div>
+        </div>
+        <span style="font-size:11px;color:var(--ml);font-weight:700;font-family:var(--mono)">${fmtDate(v.fechaStr)}</span>
+      </div>`).join('');
+  }
+}
 
 // ── NAVEGACIÓN ─────────────────────────────────────
 window.cambiarTab=t=>{
