@@ -72,6 +72,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--white);min-height:
 .card{background:var(--bg2);border-radius:var(--radius);padding:16px;border:1px solid var(--border);margin-bottom:12px}
 .card.alert-red{border-color:var(--red);background:#150808}
 .card.alert-yellow{border-color:var(--yellow);background:#150e04}
+.card.card-agotado{opacity:.55;border-color:var(--border)}
 .card-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;gap:8px}
 .card-name{font-size:15px;font-weight:700;line-height:1.3}
 .card-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
@@ -177,6 +178,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--white);min-height:
 /* BUTTONS */
 .btn-primary{width:100%;padding:14px;background:var(--lime);color:#000;border:none;border-radius:12px;font-size:16px;font-weight:800;cursor:pointer;font-family:var(--font);margin-top:8px;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 20px rgba(163,230,53,.25)}
 .btn-primary-ml{background:var(--ml);box-shadow:0 4px 20px rgba(255,230,0,.2)}
+.sort-btn{padding:8px 14px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;border:1.5px solid var(--border);background:var(--bg3);color:var(--muted);transition:all .15s;font-family:var(--font);flex-shrink:0}
+.sort-btn.active{background:rgba(163,230,53,.1);border-color:var(--lime);color:var(--lime)}
 .stitle{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin:16px 0 10px;display:flex;align-items:center;justify-content:space-between}
 .export-btn{width:100%;padding:10px;background:var(--bg3);color:var(--lime);border:1.5px solid rgba(163,230,53,.3);border-radius:10px;font-weight:700;font-size:13px;cursor:pointer;margin-bottom:14px;font-family:var(--font);display:flex;align-items:center;justify-content:center;gap:8px}
 .toggle-row{display:flex;gap:8px}
@@ -265,6 +268,18 @@ body{font-family:var(--font);background:var(--bg);color:var(--white);min-height:
   <div class="search-wrap">
     <span class="search-ico">🔍</span>
     <input type="text" id="search-almacen" placeholder="Buscar producto, lote o proveedor..." oninput="renderAlmacen()"/>
+  </div>
+  <!-- Ordenamiento -->
+  <div style="display:flex;gap:8px;margin-bottom:12px;overflow-x:auto;padding-bottom:2px">
+    <button class="sort-btn active" id="sort-stock" onclick="setOrden('stock')" title="Menor a mayor stock">
+      📊 Stock
+    </button>
+    <button class="sort-btn" id="sort-alfa" onclick="setOrden('alfa')" title="A-Z">
+      🔤 A–Z
+    </button>
+    <button class="sort-btn" id="sort-vence" onclick="setOrden('vence')" title="Próximos a vencer primero">
+      📅 Vencimiento
+    </button>
   </div>
   <button class="export-btn" onclick="exportarAlmacen()">⬇️ Exportar inventario CSV</button>
   <div class="stitle"><span>Productos</span><span id="count-almacen" style="font-family:var(--mono);color:var(--lime)">0</span></div>
@@ -543,21 +558,56 @@ window.abrirFAB=()=>{
 };
 
 // ══ ALMACÉN ════════════════════════════════════════
+let ordenActual = 'stock';
+window.setOrden = o => {
+  ordenActual = o;
+  document.querySelectorAll('.sort-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('sort-'+o).classList.add('active');
+  renderAlmacen();
+};
+
+function sortProductos(arr){
+  // Separar agotados (stock === 0) del resto
+  const conStock  = arr.filter(([,p])=>(+p.stock)>0);
+  const agotados  = arr.filter(([,p])=>(+p.stock)<=0);
+
+  if(ordenActual==='stock'){
+    // Menor stock primero (los más urgentes arriba), agotados al final A-Z
+    conStock.sort((a,b)=>(+a[1].stock)-(+b[1].stock));
+    agotados.sort((a,b)=>(a[1].nombre||'').localeCompare(b[1].nombre||'','es'));
+  } else if(ordenActual==='alfa'){
+    // A-Z todo, pero agotados al final también A-Z
+    conStock.sort((a,b)=>(a[1].nombre||'').localeCompare(b[1].nombre||'','es'));
+    agotados.sort((a,b)=>(a[1].nombre||'').localeCompare(b[1].nombre||'','es'));
+  } else if(ordenActual==='vence'){
+    // Próximos a vencer primero, sin fecha al final, agotados al final A-Z
+    conStock.sort((a,b)=>{
+      const da = a[1].vencimiento ? new Date(a[1].vencimiento) : new Date('2099');
+      const db2 = b[1].vencimiento ? new Date(b[1].vencimiento) : new Date('2099');
+      return da - db2;
+    });
+    agotados.sort((a,b)=>(a[1].nombre||'').localeCompare(b[1].nombre||'','es'));
+  }
+  return [...conStock, ...agotados];
+}
+
 function renderAlmacen(){
   const q=(document.getElementById('search-almacen').value||'').toLowerCase();
-  const arr=Object.entries(productos).filter(([,p])=>!q||[p.nombre,p.lote,p.proveedor].some(f=>(f||'').toLowerCase().includes(q)));
+  let arr=Object.entries(productos).filter(([,p])=>!q||[p.nombre,p.lote,p.proveedor].some(f=>(f||'').toLowerCase().includes(q)));
+  arr = sortProductos(arr);
   document.getElementById('count-almacen').textContent=arr.length;
   const el=document.getElementById('lista-almacen');
   if(!arr.length){el.innerHTML=`<div class="empty"><span class="empty-icon">📦</span><p>${q?'Sin resultados':'Agrega tu primer producto con +'}</p></div>`;return;}
   el.innerHTML=arr.map(([id,p])=>{
     const bajo=(+p.stock)<=(+p.stockMin||0);
     const dv=diasHasta(p.vencimiento); const pronto=dv!==null&&dv<=30&&dv>=0; const vencido=dv!==null&&dv<0;
-    let cls='card'; if(bajo||vencido) cls+=' alert-red'; else if(pronto) cls+=' alert-yellow';
+    const agotado=(+p.stock)===0;
+    let cls='card'; if(!agotado&&(bajo||vencido)) cls+=' alert-red'; else if(!agotado&&pronto) cls+=' alert-yellow'; if(agotado) cls+=' card-agotado';
     return `<div class="${cls}">
       <div class="card-header">
         <div class="card-name">${p.nombre}</div>
         <div style="display:flex;gap:4px;flex-wrap:wrap">
-          ${bajo?'<span class="badge badge-red">⚠ Bajo</span>':''}
+          ${(+p.stock)===0?'<span class="badge" style="background:rgba(100,116,139,.15);color:var(--muted);border:1px solid var(--border)">⛔ Agotado</span>':bajo?'<span class="badge badge-red">⚠ Bajo</span>':''}
           ${vencido?'<span class="badge badge-red">⛔ Vencido</span>':pronto?`<span class="badge badge-yellow">⏰ ${dv}d</span>`:''}
         </div>
       </div>
