@@ -79,7 +79,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--white);min-height:
 .cf-label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
 .cf-value{font-size:14px;font-weight:600}
 .cf-big{font-size:22px;font-weight:800;font-family:var(--mono)}
-.c-lime{color:var(--lime)} .c-green{color:var(--green)} .c-red{color:var(--red)}
+.c-lime{color:var(--lime)} .c-green{color:var(--green)} .c-red{color:var(--red)} .c-orange{color:var(--yellow)}
 .c-yellow{color:var(--yellow)} .c-blue{color:var(--blue)} .c-ml{color:var(--ml)}
 .card-actions{display:flex;gap:8px;padding-top:12px;border-top:1px solid var(--border)}
 .card-actions button{flex:1;padding:9px;border:none;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font);display:flex;align-items:center;justify-content:center;gap:5px}
@@ -602,17 +602,21 @@ function renderAlmacen(){
     const bajo=(+p.stock)<=(+p.stockMin||0);
     const dv=diasHasta(p.vencimiento); const pronto=dv!==null&&dv<=30&&dv>=0; const vencido=dv!==null&&dv<0;
     const agotado=(+p.stock)===0;
-    let cls='card'; if(!agotado&&(bajo||vencido)) cls+=' alert-red'; else if(!agotado&&pronto) cls+=' alert-yellow'; if(agotado) cls+=' card-agotado';
+    let cls='card';
+    if(agotado) cls+=' card-agotado';
+    else if(bajo&&!vencido) cls+=' alert-yellow';
+    else if(vencido) cls+=' alert-red';
+    else if(pronto) cls+=' alert-yellow';
     return `<div class="${cls}">
       <div class="card-header">
         <div class="card-name">${p.nombre}</div>
         <div style="display:flex;gap:4px;flex-wrap:wrap">
-          ${(+p.stock)===0?'<span class="badge" style="background:rgba(100,116,139,.15);color:var(--muted);border:1px solid var(--border)">⛔ Agotado</span>':bajo?'<span class="badge badge-red">⚠ Bajo</span>':''}
+          ${agotado?'<span class="badge" style="background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.3)">⛔ Agotado</span>':bajo?'<span class="badge" style="background:rgba(245,158,11,.15);color:var(--yellow);border:1px solid rgba(245,158,11,.4)">⚠ Stock bajo</span>':''}
           ${vencido?'<span class="badge badge-red">⛔ Vencido</span>':pronto?`<span class="badge badge-yellow">⏰ ${dv}d</span>`:''}
         </div>
       </div>
       <div class="card-grid">
-        <div><div class="cf-label">Stock</div><div class="cf-value cf-big ${bajo?'c-red':'c-green'}">${p.stock}</div></div>
+        <div><div class="cf-label">Stock</div><div class="cf-value cf-big ${agotado?'c-red':(bajo?'c-orange':'c-green')}">${p.stock}</div></div>
         <div><div class="cf-label">Precio MX$</div><div class="cf-value cf-big c-lime">${mxn(p.precio)}</div></div>
         <div><div class="cf-label">Proveedor</div><div class="cf-value">${p.proveedor||'—'}</div></div>
         <div><div class="cf-label">Lote</div><div class="cf-value">${p.lote||'—'}</div></div>
