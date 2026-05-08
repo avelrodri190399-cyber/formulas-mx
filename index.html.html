@@ -604,19 +604,18 @@ function renderAlmacen(){
     const agotado=(+p.stock)===0;
     let cls='card';
     if(agotado) cls+=' card-agotado';
-    else if(bajo&&!vencido) cls+=' alert-yellow';
     else if(vencido) cls+=' alert-red';
-    else if(pronto) cls+=' alert-yellow';
+    else if(bajo||pronto) cls+=' alert-yellow';
     return `<div class="${cls}">
       <div class="card-header">
         <div class="card-name">${p.nombre}</div>
         <div style="display:flex;gap:4px;flex-wrap:wrap">
-          ${agotado?'<span class="badge" style="background:rgba(239,68,68,.15);color:var(--red);border:1px solid rgba(239,68,68,.3)">⛔ Agotado</span>':bajo?'<span class="badge" style="background:rgba(245,158,11,.15);color:var(--yellow);border:1px solid rgba(245,158,11,.4)">⚠ Stock bajo</span>':''}
+          ${agotado?'<span class="badge" style="background:rgba(100,116,139,.12);color:var(--muted);border:1px solid var(--border)">⛔ Agotado</span>':bajo?'<span class="badge" style="background:rgba(245,158,11,.15);color:var(--yellow);border:1px solid rgba(245,158,11,.4)">⚠ Stock bajo</span>':''}
           ${vencido?'<span class="badge badge-red">⛔ Vencido</span>':pronto?`<span class="badge badge-yellow">⏰ ${dv}d</span>`:''}
         </div>
       </div>
       <div class="card-grid">
-        <div><div class="cf-label">Stock</div><div class="cf-value cf-big ${agotado?'c-red':(bajo?'c-orange':'c-green')}">${p.stock}</div></div>
+        <div><div class="cf-label">Stock</div><div class="cf-value cf-big ${bajo&&!agotado?'c-orange':(!agotado?'c-green':'')}">${p.stock}</div></div>
         <div><div class="cf-label">Precio MX$</div><div class="cf-value cf-big c-lime">${mxn(p.precio)}</div></div>
         <div><div class="cf-label">Proveedor</div><div class="cf-value">${p.proveedor||'—'}</div></div>
         <div><div class="cf-label">Lote</div><div class="cf-value">${p.lote||'—'}</div></div>
